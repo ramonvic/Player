@@ -118,6 +118,9 @@ public protocol PlayerPlaybackDelegate: NSObjectProtocol {
     func playerPlaybackWillStartFromBeginning(_ player: Player)
     func playerPlaybackDidEnd(_ player: Player)
     func playerPlaybackWillLoop(_ player: Player)
+
+    func playerEnterFullScreen()
+    func playerExitFullScreen()
 }
 
 // MARK: - Player
@@ -300,6 +303,7 @@ open class Player: UIViewController {
         }
     }
     internal var _avplayer: AVPlayer
+    internal weak var _avFullScreenPlayer: FullScreenPlayer?
     internal var _playerItem: AVPlayerItem?
     internal var _timeObserver: Any?
     
@@ -371,7 +375,7 @@ open class Player: UIViewController {
     open override func viewDidDisappear(_ animated: Bool) {
         super.viewDidDisappear(animated)
 
-        if self.playbackState == .playing {
+        if self.playbackState == .playing, self._avFullScreenPlayer == nil {
             self.pause()
         }
     }
@@ -463,6 +467,16 @@ open class Player: UIViewController {
     /// things such as Picture in Picture
     open func playerLayer() -> AVPlayerLayer? {
         return self._playerView.playerLayer
+    }
+
+    /// Enter full screen mode
+    open func enterFullScreen(supportedInterfaceOrientations: UIInterfaceOrientationMask = .landscape){
+        let _avFullScreenPlayer = FullScreenPlayer(playbackDelegate: playbackDelegate, supportedInterfaceOrientations: supportedInterfaceOrientations)
+        _avFullScreenPlayer.player = _avplayer
+
+        present(_avFullScreenPlayer, animated: true, completion: nil)
+
+        self._avFullScreenPlayer = _avFullScreenPlayer
     }
 }
 
@@ -755,7 +769,7 @@ extension Player {
                 // PlayerLoadedTimeRangesKey
                 
                 if let item = self._playerItem {
-                    self.bufferingState = .ready
+                    self.bufferingState = item.isPlaybackLikelyToKeepUp ? .ready: .delayed
                     
                     let timeRanges = item.loadedTimeRanges
                     if let timeRange = timeRanges.first?.timeRangeValue {
